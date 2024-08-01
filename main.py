@@ -296,8 +296,6 @@ POLICY_CODE = {
 async def kakaoChat(request: Request):
     kakaorequest = await request.json()
     responseData = getYouthPolicy(kakaorequest)
-    print(responseData)
-    print(type(responseData))
     return responseData
 
 
@@ -344,8 +342,6 @@ def responseYouthApi(request, response_queue, filename):
 
         if len(last_update.split()) > 1:
             bot_res = json.loads(last_update[4:])
-            print('testset')
-            print(bot_res)
             response_queue.put(bot_res)
             dbReset(filename)
     elif '/help ask' in request["userRequest"]["utterance"]:
@@ -477,8 +473,6 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
 
     policyDataToGpt = {}
     policyDetailData = {}
-
-    print(youthPolicyJson['youthPolicyList']['youthPolicy'])
 
     if isinstance(youthPolicyJson['youthPolicyList']['youthPolicy'], dict):
         youthPolicyJson['youthPolicyList']['youthPolicy'] = [youthPolicyJson['youthPolicyList']['youthPolicy']]
