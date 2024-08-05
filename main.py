@@ -291,7 +291,8 @@ POLICY_CODE = {
     '참여.권리 분야': '023050'
 }
 
-DATE_PERIOD_REGEX = r'\d{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])~\d{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])'
+DATE_PERIOD_REGEX = r'\d{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01]) ?~ ?\d{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])'
+AGE_PERIOD_REGEX = r'(\d*세) ?~ ?(\d*세)'
 
 
 @app.post("/chat")
@@ -497,22 +498,32 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
         if '상시' in policyApplyPeriod:
             print("신청 기간 : 상시")
         else:
-            policyApplyPeriod = re.search(DATE_PERIOD_REGEX, policyApplyPeriod).string
+            policyApplyPeriod = re.search(DATE_PERIOD_REGEX, policyApplyPeriod).group()
             print(policyApplyPeriod)
             policyApplyPeriodSplit = policyApplyPeriod.split('~')
             print(policyApplyPeriodSplit)
-            startDate = date.fromisoformat(policyApplyPeriodSplit[0])
-            endDate = date.fromisoformat(policyApplyPeriodSplit[1])
-            print("신청 기간 : " + re.search(DATE_PERIOD_REGEX, policyApplyPeriod).string)
+            startDate = date.fromisoformat(policyApplyPeriodSplit[0].strip())
+            endDate = date.fromisoformat(policyApplyPeriodSplit[1].strip())
 
-            applyResult = "신청 기간이 아님"
-            if startDate <= date.today() and endDate <= date.today():
-                applyResult = "신청 기간"
+            applyPeriodResult = "신청 기간이 아님"
+            if startDate <= date.today() and endDate >= date.today():
+                applyPeriodResult = "신청 기간"
 
-            print("신청 기간 여부 : " + applyResult)
-        print("나이" + policyAge)
+            print("신청 기간 여부 : " + applyPeriodResult)
 
-    print(policyDetailData)
+        if '나이제한없음' in policyAge or '제한없음' in policyAge:
+            print("나이 : 나이제한없음")
+        else:
+            policyAge = re.search(AGE_PERIOD_REGEX, policyAge).group()
+            policyAgeSplit = policyAge.split('~')
+            startAge = policyAgeSplit[0].strip()[:-1]
+            endAge = policyAgeSplit[1].strip()[:-1]
+
+            applyAgeResult = "신청 가능 연령"
+            if startAge <= age and endAge >= age:
+                applyAgeResult = "신청 불가 연령"
+
+            print("신청 연령 여부 : " + applyAgeResult)
 
     policyDataToGptJson = json.dumps(policyDataToGpt)
 
