@@ -495,13 +495,14 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
         policyDetailData[policyId]['policyReferenceUrl2'] = policyReferenceUrl2
 
 
+        print(policyApplyPeriod)
+        print(policyAge)
+
         if '상시' in policyApplyPeriod:
             print("신청 기간 : 상시")
         else:
             policyApplyPeriod = re.search(DATE_PERIOD_REGEX, policyApplyPeriod).group()
-            print(policyApplyPeriod)
             policyApplyPeriodSplit = policyApplyPeriod.split('~')
-            print(policyApplyPeriodSplit)
             startDate = date.fromisoformat(policyApplyPeriodSplit[0].strip())
             endDate = date.fromisoformat(policyApplyPeriodSplit[1].strip())
 
@@ -519,9 +520,9 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
             startAge = policyAgeSplit[0].strip()[:-1]
             endAge = policyAgeSplit[1].strip()[:-1]
 
-            applyAgeResult = "신청 가능 연령"
+            applyAgeResult = "신청 불가 연령"
             if startAge <= age and endAge >= age:
-                applyAgeResult = "신청 불가 연령"
+                applyAgeResult = "신청 가능 연령"
 
             print("신청 연령 여부 : " + applyAgeResult)
 
