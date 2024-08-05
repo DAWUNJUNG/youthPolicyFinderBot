@@ -303,12 +303,15 @@ async def kakaoChat(request: Request):
 
 
 def getYouthPolicy(kakaorequest):
+    # 위 값으로 DB에 데이터를 넣겠끔 수정
+    kakaoUID = kakaorequest['userRequest']['user']['properties']['plusfriendUserKey']
+
     run_flag = False
     start_time = time.time()
 
     # 응답 결과를 저장하기 위한 텍스트 파일 생성
     cwd = os.getcwd()
-    filename = cwd + '/botlog.txt'
+    filename = cwd + f'/{kakaoUID} - botlog.txt'
     if not os.path.exists(filename):
         with open(filename, "w") as f:
             f.write("")
@@ -481,9 +484,6 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
         betweenPeriod = False
         betweenAge = False
 
-        print(policyData['rqutPrdCn'])
-        print(policyData['ageInfo'])
-
         if '상시' in policyData['rqutPrdCn']:
             betweenPeriod = True
         else:
@@ -505,9 +505,6 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
 
             if startAge <= age and endAge >= age:
                 betweenAge = True
-
-        print(betweenPeriod)
-        print(betweenAge)
 
         if betweenPeriod and betweenAge:
             ibotMessage[1]['carousel']['items'].append({
@@ -531,8 +528,6 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
                     }
                 ]
             })
-
-    print(ibotMessage[1])
 
     if len(ibotMessage[1]['carousel']['items']) < 1:
         return {
@@ -559,9 +554,7 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
 
 
 def dbReset(filename):
-    with open(filename, 'w') as f:
-        f.write("")
-
+    os.remove(filename)
 
 def timeover():
     response = {
