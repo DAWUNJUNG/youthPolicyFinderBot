@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import time
 import requests
@@ -6,7 +7,6 @@ import xmltodict
 import threading
 import queue as q
 from datetime import date
-from openai import OpenAI
 from dotenv import load_dotenv
 from fastapi import Request, FastAPI
 
@@ -291,6 +291,8 @@ POLICY_CODE = {
     '참여.권리 분야': '023050'
 }
 
+DATE_PERIOD_REGEX = r'\d{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])~\d{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])'
+
 
 @app.post("/chat")
 async def kakaoChat(request: Request):
@@ -444,8 +446,6 @@ def responseYouthApi(request, response_queue, filename):
 
 
 def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
-    gptClient = OpenAI()
-
     if citySelect is None or governmentSelect is None or age is None or citySelect == 'null' or governmentSelect == 'null' or age == 'null':
         return errorMessage()
 
@@ -461,15 +461,6 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
     youthPolicyXml = youthPolicyRespone.text
 
     youthPolicyJson = json.loads(json.dumps(xmltodict.parse(youthPolicyXml), indent=4))
-
-    gptPrompt = """[청년 정책]아래에 있는 데이터는 청년 정책 내용이야. 정책 소개는 policyIntro이고, 정책 내용은 policyContent, 정책 신청 기간은 policyApplyPeriod이고, 신청 연령은 policyAge으로 구성되어 있어
-            아래 내용에서 정책에서 내 나이가 """ + str(age) + """살이고, 정책 신청 기간에 '상시'라는 단어가 포함되어 있거나 오늘 일자가 """ + str(date.today()) + """일때 신청 가능한 정책의 내용을 모두 찾아서 정책 소개와 정책 내용을 기반으로 요약해줘. 
-            요약된 내용을 [반환 형식]과 같은 형태로 반환해줘.
-            [반환형식]
-            [{"{policyId}": policyShortContent}...]
-            [청년 정책]
-
-            """
 
     policyDataToGpt = {}
     policyDetailData = {}
@@ -502,24 +493,28 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
         policyDetailData[policyId]['policyReferenceUrl1'] = policyReferenceUrl1
         policyDetailData[policyId]['policyReferenceUrl2'] = policyReferenceUrl2
 
+
+        if '상시' in policyApplyPeriod:
+            print("신청 기간 : 상시")
+        else:
+            policyApplyPeriod = re.search(DATE_PERIOD_REGEX, policyApplyPeriod).string
+            print(policyApplyPeriod)
+            policyApplyPeriodSplit = policyApplyPeriod.split('~')
+            print(policyApplyPeriodSplit)
+            startDate = date.fromisoformat(policyApplyPeriodSplit[0])
+            endDate = date.fromisoformat(policyApplyPeriodSplit[1])
+            print("신청 기간 : " + re.search(DATE_PERIOD_REGEX, policyApplyPeriod).string)
+
+            applyResult = "신청 기간이 아님"
+            if startDate <= date.today() and endDate <= date.today():
+                applyResult = "신청 기간"
+
+            print("신청 기간 여부 : " + applyResult)
+        print("나이" + policyAge)
+
+    print(policyDetailData)
+
     policyDataToGptJson = json.dumps(policyDataToGpt)
-
-    gptPrompt += policyDataToGptJson
-
-    gptResponse = gptClient.chat.completions.create(
-        model='gpt-4o-mini',
-        response_format={"type": "json_object"},
-        messages=[
-            {"role": "system",
-             "content": "너는 입력받은 청년 정책에 대해 참여가 가능한지 구분하여 현재 참여가능한 청년 정책을 요약하여 JSON 데이터형태로 반환해주는 봇이야.[{'{policyId}': policyShortContent}...]아 같이 반환 해야해"},
-            {"role": "user", "content": gptPrompt},
-        ]
-    )
-
-    gptContent = json.loads(gptResponse.choices[0].message.content)
-
-    if 'result' in gptContent.keys():
-        gptContent = gptContent['result']
 
     ibotMessage = [{
         "simpleText": {
@@ -532,7 +527,8 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
         }
     }]
 
-    if len(gptContent) < 1:
+    # 임시 처리
+    if True:
         return {
             "version": "2.0",
             "template": {
