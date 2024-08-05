@@ -463,70 +463,8 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
 
     youthPolicyJson = json.loads(json.dumps(xmltodict.parse(youthPolicyXml), indent=4))
 
-    policyDataToGpt = {}
-    policyDetailData = {}
-
     if isinstance(youthPolicyJson['youthPolicyList']['youthPolicy'], dict):
         youthPolicyJson['youthPolicyList']['youthPolicy'] = [youthPolicyJson['youthPolicyList']['youthPolicy']]
-
-    for policyData in youthPolicyJson['youthPolicyList']['youthPolicy']:
-        policyId = policyData['bizId']
-        policyTitle = policyData['polyBizSjnm']
-        policyIntro = policyData['polyItcnCn']
-        policyContent = policyData['sporCn']
-        policyApplyPeriod = policyData['rqutPrdCn']
-        policyAge = policyData['ageInfo']
-        policyReferenceUrl1 = policyData['rfcSiteUrla1']
-        policyReferenceUrl2 = policyData['rfcSiteUrla2']
-        policyApplyUrl = policyData['rqutUrla']
-
-        policyDataToGpt[policyId] = {
-            'policyId': policyId,
-            'policyIntro': policyIntro,
-            'policyContent': policyContent,
-            'policyApplyPeriod': policyApplyPeriod,
-            'policyAge': policyAge
-        }
-
-        policyDetailData = policyDataToGpt.copy()
-        policyDetailData[policyId]['policyTitle'] = policyTitle
-        policyDetailData[policyId]['policyApplyUrl'] = policyApplyUrl
-        policyDetailData[policyId]['policyReferenceUrl1'] = policyReferenceUrl1
-        policyDetailData[policyId]['policyReferenceUrl2'] = policyReferenceUrl2
-
-
-        print(policyApplyPeriod)
-        print(policyAge)
-
-        if '상시' in policyApplyPeriod:
-            print("신청 기간 : 상시")
-        else:
-            policyApplyPeriod = re.search(DATE_PERIOD_REGEX, policyApplyPeriod).group()
-            policyApplyPeriodSplit = policyApplyPeriod.split('~')
-            startDate = date.fromisoformat(policyApplyPeriodSplit[0].strip())
-            endDate = date.fromisoformat(policyApplyPeriodSplit[1].strip())
-
-            applyPeriodResult = "신청 기간이 아님"
-            if startDate <= date.today() and endDate >= date.today():
-                applyPeriodResult = "신청 기간"
-
-            print("신청 기간 여부 : " + applyPeriodResult)
-
-        if '나이제한없음' in policyAge or '제한없음' in policyAge:
-            print("나이 : 나이제한없음")
-        else:
-            policyAge = re.search(AGE_PERIOD_REGEX, policyAge).group()
-            policyAgeSplit = policyAge.split('~')
-            startAge = policyAgeSplit[0].strip()[:-1]
-            endAge = policyAgeSplit[1].strip()[:-1]
-
-            applyAgeResult = "신청 불가 연령"
-            if startAge <= age and endAge >= age:
-                applyAgeResult = "신청 가능 연령"
-
-            print("신청 연령 여부 : " + applyAgeResult)
-
-    policyDataToGptJson = json.dumps(policyDataToGpt)
 
     ibotMessage = [{
         "simpleText": {
@@ -539,8 +477,64 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
         }
     }]
 
-    # 임시 처리
-    if True:
+    for policyData in youthPolicyJson['youthPolicyList']['youthPolicy']:
+        betweenPeriod = False
+        betweenAge = False
+
+        print(policyData['rqutPrdCn'])
+        print(policyData['ageInfo'])
+
+        if '상시' in policyData['rqutPrdCn']:
+            betweenPeriod = True
+        else:
+            policyApplyPeriod = re.search(DATE_PERIOD_REGEX, policyData['rqutPrdCn']).group()
+            policyApplyPeriodSplit = policyApplyPeriod.split('~')
+            startDate = date.fromisoformat(policyApplyPeriodSplit[0].strip())
+            endDate = date.fromisoformat(policyApplyPeriodSplit[1].strip())
+
+            if startDate <= date.today() and endDate >= date.today():
+                betweenPeriod = True
+
+        if '나이제한없음' in policyData['ageInfo'] or '제한없음' in policyData['ageInfo']:
+            betweenAge = True
+        else:
+            policyAge = re.search(AGE_PERIOD_REGEX, policyData['ageInfo']).group()
+            policyAgeSplit = policyAge.split('~')
+            startAge = policyAgeSplit[0].strip()[:-1]
+            endAge = policyAgeSplit[1].strip()[:-1]
+
+            if startAge <= age and endAge >= age:
+                betweenAge = True
+
+        print(betweenPeriod)
+        print(betweenAge)
+
+        if betweenPeriod and betweenAge:
+            ibotMessage[1]['carousel']['items'].append({
+                'title': policyData['polyBizSjnm'],
+                'description': policyData['sporCn'],
+                'buttons': [
+                    {
+                        "action": "webLink",
+                        "label": "참고 사이트 1",
+                        "webLinkUrl": policyData['rfcSiteUrla1']
+                    },
+                    {
+                        "action": "webLink",
+                        "label": "참고 사이트 2",
+                        "webLinkUrl": policyData['rfcSiteUrla2']
+                    },
+                    {
+                        "action": "webLink",
+                        "label": "신청 사이트",
+                        "webLinkUrl": policyData['rqutUrla']
+                    }
+                ]
+            })
+
+    print(ibotMessage[1])
+
+    if len(ibotMessage[1]['carousel']['items']) < 1:
         return {
             "version": "2.0",
             "template": {
@@ -553,50 +547,6 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
                 ],
                 "quickReplies": []
             }}
-
-    if isinstance(gptContent, list):
-        for gptContentPolicy in gptContent:
-            for gptContentPolicyId in gptContentPolicy.keys():
-                ibotMessage[1]['carousel']['items'].append({
-                    'title': policyDetailData[gptContentPolicyId]['policyTitle'],
-                    'description': gptContentPolicy[gptContentPolicyId],
-                    'buttons': [
-                        {
-                            "action": "webLink",
-                            "label": "참고 사이트 1",
-                            "webLinkUrl": policyDetailData[gptContentPolicyId]['policyReferenceUrl1']
-                        },
-                        {
-                            "action": "webLink",
-                            "label": "참고 사이트 2",
-                            "webLinkUrl": policyDetailData[gptContentPolicyId]['policyReferenceUrl2']
-                        },
-                        {
-                            "action": "webLink",
-                            "label": "신청 사이트",
-                            "webLinkUrl": policyDetailData[gptContentPolicyId]['policyApplyUrl']
-                        }
-                    ]
-                })
-
-    elif isinstance(gptContent, dict):
-        for gptContentPolicyId in gptContent.keys():
-            ibotMessage[1]['carousel']['items'].append({
-                'title': policyDetailData[gptContentPolicyId]['policyTitle'],
-                'description': gptContent[gptContentPolicyId],
-                'buttons': [
-                    {
-                        "action": "webLink",
-                        "label": "참고 사이트",
-                        "webLinkUrl": policyDetailData[gptContentPolicyId]['policyReferenceUrl1']
-                    },
-                    {
-                        "action": "webLink",
-                        "label": "신청 사이트",
-                        "webLinkUrl": policyDetailData[gptContentPolicyId]['policyApplyUrl']
-                    }
-                ]
-            })
 
     ibotMsgFormatData = {
         'version': '2.0',
