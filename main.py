@@ -358,7 +358,7 @@ def responseYouthApi(request, response_queue, filename):
                     {
                         "textCard": {
                             "title": "정책 검색 명령어를 설명드릴게요!",
-                            "description": "/ask : 정책을 검색할 수 있는 명령어에요!\n예시) /ask 시/구(군)/만나이",
+                            "description": "/ask : 정책을 검색할 수 있는 명령어에요!\n예시) /ask 시(도)/구(군)/만나이",
                             "buttons": [
                                 {
                                     "action": "message",
@@ -450,7 +450,14 @@ def responseYouthApi(request, response_queue, filename):
 
 
 def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
-    if citySelect is None or governmentSelect is None or age is None or citySelect == 'null' or governmentSelect == 'null' or age == 'null':
+    if citySelect is None \
+            or citySelect == 'null' \
+            or citySelect not in GOVERNMENT_CODE.keys() \
+            or governmentSelect is None \
+            or governmentSelect == 'null' \
+            or governmentSelect not in GOVERNMENT_CODE[citySelect].keys() \
+            or age is None \
+            or age == 'null':
         return errorMessage()
 
     query = {
@@ -465,6 +472,9 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
     youthPolicyXml = youthPolicyRespone.text
 
     youthPolicyJson = json.loads(json.dumps(xmltodict.parse(youthPolicyXml), indent=4))
+
+    if youthPolicyJson['youthPolicyList']['totalCnt'] == '0':
+        return notFoundMessage()
 
     if isinstance(youthPolicyJson['youthPolicyList']['youthPolicy'], dict):
         youthPolicyJson['youthPolicyList']['youthPolicy'] = [youthPolicyJson['youthPolicyList']['youthPolicy']]
@@ -484,10 +494,15 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
         betweenPeriod = False
         betweenAge = False
 
-        if '상시' in policyData['rqutPrdCn']:
+        print("신청 기간 : " + policyData['rqutPrdCn'])
+        print("신청 연령 : " + policyData['ageInfo'])
+
+        policyApplyPeriod = re.search(DATE_PERIOD_REGEX, policyData['rqutPrdCn'])
+
+        if policyApplyPeriod is None:
             betweenPeriod = True
         else:
-            policyApplyPeriod = re.search(DATE_PERIOD_REGEX, policyData['rqutPrdCn']).group()
+            policyApplyPeriod = policyApplyPeriod.group()
             policyApplyPeriodSplit = policyApplyPeriod.split('~')
             startDate = date.fromisoformat(policyApplyPeriodSplit[0].strip())
             endDate = date.fromisoformat(policyApplyPeriodSplit[1].strip())
@@ -495,10 +510,11 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
             if startDate <= date.today() and endDate >= date.today():
                 betweenPeriod = True
 
-        if '나이제한없음' in policyData['ageInfo'] or '제한없음' in policyData['ageInfo']:
+        policyAge = re.search(AGE_PERIOD_REGEX, policyData['ageInfo'])
+        if policyAge is None:
             betweenAge = True
         else:
-            policyAge = re.search(AGE_PERIOD_REGEX, policyData['ageInfo']).group()
+            policyAge = policyAge.group()
             policyAgeSplit = policyAge.split('~')
             startAge = policyAgeSplit[0].strip()[:-1]
             endAge = policyAgeSplit[1].strip()[:-1]
@@ -529,19 +545,12 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
                 ]
             })
 
+        print(f"신청 기간에 포함 여부 : {betweenPeriod}")
+        print(f"신청 연령에 포함 여부 : {betweenAge}")
+        print("=======================================")
+
     if len(ibotMessage[1]['carousel']['items']) < 1:
-        return {
-            "version": "2.0",
-            "template": {
-                "outputs": [
-                    {
-                        "simpleText": {
-                            "text": "신청가능한 정책이 없어요.. ㅜㅜ"
-                        }
-                    }
-                ],
-                "quickReplies": []
-            }}
+        return notFoundMessage()
 
     ibotMsgFormatData = {
         'version': '2.0',
@@ -555,6 +564,7 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
 
 def dbReset(filename):
     os.remove(filename)
+
 
 def timeover():
     response = {
@@ -584,6 +594,21 @@ def errorMessage():
                 {
                     "simpleText": {
                         "text": "명령어를 이해하지 못했어요..\n\n정책을 검색하시려면 형식에 맞게 입력해주세요!\n\n/ask 서울/광진구/20\n\n명령어를 확인하고 싶으시면 /help를 입력해주세요!"
+                    }
+                }
+            ],
+            "quickReplies": []
+        }}
+
+
+def notFoundMessage():
+    return {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "simpleText": {
+                        "text": "신청가능한 정책이 없어요.. ㅜㅜ"
                     }
                 }
             ],
