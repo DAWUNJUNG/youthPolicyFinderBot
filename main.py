@@ -438,7 +438,7 @@ def responseYouthApi(request, response_queue, filename):
         splitPrompt = prompt.split('/')
 
         if len(splitPrompt) < 2:
-            errorMessage()
+            return errorMessage()
 
         city = splitPrompt[0]
         government = splitPrompt[1]
