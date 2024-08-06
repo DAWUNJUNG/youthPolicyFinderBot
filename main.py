@@ -2,6 +2,7 @@ import os
 import re
 import json
 import time
+import pymysql
 import requests
 import xmltodict
 import threading
@@ -14,8 +15,18 @@ load_dotenv()
 
 app = FastAPI()
 
-YOUTH_API_HOST = 'https://www.youthcenter.go.kr/opi/youthPlcyList.do'
+DB_CONN = pymysql.connect(host=os.getenv('DB_HOST'), port=int(os.getenv('DB_PORT')), user=os.getenv('DB_USER'), password=os.getenv('DB_PW'), db=os.getenv('DB_DATABASE'), charset='utf8', cursorclass=pymysql.cursors.DictCursor)
 
+YOUTH_API_HOST = 'https://www.youthcenter.go.kr/opi/youthPlcyList.do'
+DATE_PERIOD_REGEX = r'\d{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01]) ?~ ?\d{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])'
+AGE_PERIOD_REGEX = r'(\d*세) ?~ ?(\d*세)'
+POLICY_CODE = {
+    '일자리 분야': '023010',
+    '주거 분야': '023020',
+    '교육 분야': '023030',
+    '복지.문화 분야': '023040',
+    '참여.권리 분야': '023050'
+}
 GOVERNMENT_CODE = {
     '서울': {
         '종로구': '003002001001',
@@ -283,75 +294,68 @@ GOVERNMENT_CODE = {
     }
 }
 
-POLICY_CODE = {
-    '일자리 분야': '023010',
-    '주거 분야': '023020',
-    '교육 분야': '023030',
-    '복지.문화 분야': '023040',
-    '참여.권리 분야': '023050'
-}
 
-DATE_PERIOD_REGEX = r'\d{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01]) ?~ ?\d{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])'
-AGE_PERIOD_REGEX = r'(\d*세) ?~ ?(\d*세)'
+@app.post("/start")
+async def kakaoChat(request: Request):
+    kakaorequest = await request.json()
+    responseData = botRequestProcess(kakaorequest)
+    return responseData
 
 
 @app.post("/chat")
 async def kakaoChat(request: Request):
     kakaorequest = await request.json()
-    responseData = getYouthPolicy(kakaorequest)
+    responseData = botRequestProcess(kakaorequest)
     return responseData
 
 
-def getYouthPolicy(kakaorequest):
-    # 위 값으로 DB에 데이터를 넣겠끔 수정
+def botRequestProcess(kakaorequest):
     kakaoUID = kakaorequest['userRequest']['user']['properties']['plusfriendUserKey']
 
-    run_flag = False
-    start_time = time.time()
+    runFlag = False
+    startTime = time.time()
 
-    # 응답 결과를 저장하기 위한 텍스트 파일 생성
-    cwd = os.getcwd()
-    filename = cwd + f'/{kakaoUID} - botlog.txt'
-    if not os.path.exists(filename):
-        with open(filename, "w") as f:
-            f.write("")
-    else:
-        print("File Exists")
+    # 응답 결과를 저장하기 위한 정보 생서 
+    if searchKakaoUser(kakaoUID) is None:
+        newKakaoUser(kakaoUID)
 
-        # 답변 생성 함수 실행
-    response_queue = q.Queue()
-    request_respond = threading.Thread(target=responseYouthApi,
-                                       args=(kakaorequest, response_queue, filename))
-    request_respond.start()
+    # 답변 생성 함수 실행
+    botQueue = q.Queue()
+    requestProcess = threading.Thread(target=getYouthPolicy,
+                                       args=(kakaoUID, kakaorequest, botQueue))
+    requestProcess.start()
 
     # 답변 생성 시간 체크
-    while (time.time() - start_time < 3.5):
-        if not response_queue.empty():
+    while (time.time() - startTime < 3.5):
+        if not botQueue.empty():
             # 3.5초 안에 답변이 완성되면 바로 값 리턴
-            response = response_queue.get()
-            run_flag = True
+            response = botQueue.get()
+            runFlag = True
             break
         # 안정적인 구동을 위한 딜레이 타임 설정
         time.sleep(0.01)
 
     # 3.5초 내 답변이 생성되지 않을 경우
-    if run_flag == False:
+    if runFlag == False:
         response = timeover()
 
     return response
 
 
-def responseYouthApi(request, response_queue, filename):
-    if '다 찾았나요?' in request["userRequest"]["utterance"]:
-        with open(filename) as f:
-            last_update = f.read()
+def getYouthPolicy(kakaoUID, request, botQueue):
+    userMessage = request["userRequest"]["utterance"]
 
-        if len(last_update.split()) > 1:
-            bot_res = json.loads(last_update[4:])
-            response_queue.put(bot_res)
-            dbReset(filename)
-    elif '/help ask' in request["userRequest"]["utterance"]:
-        response_queue.put({
+    if '다 찾았나요?' in userMessage:
+        searchControlData = searchKakaoUser(kakaoUID)
+        
+        lastUpdate = searchControlData['content']
+
+        if len(lastUpdate.split()) > 1:
+            bot_res = json.loads(lastUpdate[4:])
+            botQueue.put(bot_res)
+            searchReset(kakaoUID)
+    elif '/help ask' in userMessage:
+        botQueue.put({
             "version": "2.0",
             "template": {
                 "outputs": [
@@ -376,8 +380,8 @@ def responseYouthApi(request, response_queue, filename):
                 ],
                 "quickReplies": []
             }})
-    elif '/help 도시목록' in request["userRequest"]["utterance"]:
-        response_queue.put({
+    elif '/help 도시목록' in userMessage:
+        botQueue.put({
             "version": "2.0",
             "template": {
                 "outputs": [
@@ -390,8 +394,8 @@ def responseYouthApi(request, response_queue, filename):
                 ],
                 "quickReplies": []
             }})
-    elif '/help 지역구목록' in request["userRequest"]["utterance"]:
-        cityName = request["userRequest"]["utterance"].replace("/help 지역구목록 ", "")
+    elif '/help 지역구목록' in userMessage:
+        cityName = userMessage.replace("/help 지역구목록 ", "")
         if cityName not in GOVERNMENT_CODE.keys():
             govTitle = "아래 명령어 형식으로 검색해주세요"
             govMessage = "/help 지역구목록 서울 과 같은 형식으로 입력하면 검색할 수 있어요!"
@@ -399,7 +403,7 @@ def responseYouthApi(request, response_queue, filename):
             govTitle = f"{cityName} 지역구를 아래에 적어 둘게요!"
             govMessage = ", ".join(GOVERNMENT_CODE[cityName].keys())
 
-        response_queue.put({
+        botQueue.put({
             "version": "2.0",
             "template": {
                 "outputs": [
@@ -412,8 +416,8 @@ def responseYouthApi(request, response_queue, filename):
                 ],
                 "quickReplies": []
             }})
-    elif '/help' in request["userRequest"]["utterance"]:
-        response_queue.put({
+    elif '/help' in userMessage:
+        botQueue.put({
             "version": "2.0",
             "template": {
                 "outputs": [
@@ -432,9 +436,9 @@ def responseYouthApi(request, response_queue, filename):
                     }
                 ]
             }})
-    elif '/ask ' in request["userRequest"]["utterance"]:
+    elif '/ask ' in userMessage:
         dbReset(filename)
-        prompt = request["userRequest"]["utterance"].replace("/ask ", "")
+        prompt = userMessage.replace("/ask ", "")
         splitPrompt = prompt.split('/')
 
         if len(splitPrompt) < 2:
@@ -444,13 +448,13 @@ def responseYouthApi(request, response_queue, filename):
         government = splitPrompt[1]
         age = splitPrompt[2]
         bot_res = callYouthPolicyAndGpt(city, government, age)
-        response_queue.put(bot_res)
+        botQueue.put(bot_res)
 
         save_log = "ask" + " " + json.dumps(bot_res)
         with open(filename, 'w') as f:
             f.write(save_log)
     else:
-        response_queue.put(errorMessage())
+        botQueue.put(errorMessage())
 
 
 def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
@@ -566,10 +570,6 @@ def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
     return ibotMsgFormatData
 
 
-def dbReset(filename):
-    os.remove(filename)
-
-
 def timeover():
     response = {
         "version": "2.0",
@@ -618,3 +618,30 @@ def notFoundMessage():
             ],
             "quickReplies": []
         }}
+
+def searchKakaoUser(kakaoUid):
+    cur = DB_CONN.cursor()
+    sql = 'SELECT * FROM searchControl WHERE kakaoUid = %s'
+    cur.execute(sql, kakaoUid)
+    return cur.fetchone()
+
+
+def newKakaoUser(kakaoUid):
+    cur = DB_CONN.cursor()
+    cur.execute(
+        'INSERT INTO searchControl (kakaoUid) VALUES (%s)',
+        kakaoUid
+    )
+    DB_CONN.commit()
+
+
+def searchReset(kakaoUid):
+    cur = DB_CONN.cursor()
+    cur.execute(
+        'UPDATE searchControl SET content = null WHERE kakaoUid = %s',
+        kakaoUid
+    )
+    DB_CONN.commit()
+
+
+
