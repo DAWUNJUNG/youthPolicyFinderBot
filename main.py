@@ -436,6 +436,10 @@ def responseYouthApi(request, response_queue, filename):
         dbReset(filename)
         prompt = request["userRequest"]["utterance"].replace("/ask ", "")
         splitPrompt = prompt.split('/')
+
+        if len(splitPrompt) < 2:
+            errorMessage()
+
         city = splitPrompt[0]
         government = splitPrompt[1]
         age = splitPrompt[2]
