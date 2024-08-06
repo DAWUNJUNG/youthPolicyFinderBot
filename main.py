@@ -437,7 +437,7 @@ def getYouthPolicy(kakaoUID, request, botQueue):
                 ]
             }})
     elif '/ask ' in userMessage:
-        dbReset(filename)
+        searchReset(kakaoUID)
         prompt = userMessage.replace("/ask ", "")
         splitPrompt = prompt.split('/')
 
@@ -450,9 +450,7 @@ def getYouthPolicy(kakaoUID, request, botQueue):
         bot_res = callYouthPolicyAndGpt(city, government, age)
         botQueue.put(bot_res)
 
-        save_log = "ask" + " " + json.dumps(bot_res)
-        with open(filename, 'w') as f:
-            f.write(save_log)
+        writeYouthContent(kakaoUID, json.dumps(bot_res))
     else:
         botQueue.put(errorMessage())
 
@@ -631,6 +629,15 @@ def newKakaoUser(kakaoUid):
     cur.execute(
         'INSERT INTO searchControl (kakaoUid) VALUES (%s)',
         kakaoUid
+    )
+    DB_CONN.commit()
+
+
+def writeYouthContent(kakaoUid, content):
+    cur = DB_CONN.cursor()
+    cur.execute(
+        'UPDATE searchControl SET content = %s WHERE kakaoUid = %s',
+        (content, kakaoUid)
     )
     DB_CONN.commit()
 
