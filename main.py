@@ -15,11 +15,14 @@ load_dotenv()
 
 app = FastAPI()
 
-DB_CONN = pymysql.connect(host=os.getenv('DB_HOST'), port=int(os.getenv('DB_PORT')), user=os.getenv('DB_USER'), password=os.getenv('DB_PW'), db=os.getenv('DB_DATABASE'), charset='utf8', cursorclass=pymysql.cursors.DictCursor)
+DB_CONN = pymysql.connect(host=os.getenv('DB_HOST'), port=int(os.getenv('DB_PORT')), user=os.getenv('DB_USER'),
+                          password=os.getenv('DB_PW'), db=os.getenv('DB_DATABASE'), charset='utf8',
+                          cursorclass=pymysql.cursors.DictCursor)
 
 YOUTH_API_HOST = 'https://www.youthcenter.go.kr/opi/youthPlcyList.do'
 DATE_PERIOD_REGEX = r'\d{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01]) ?~ ?\d{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])'
 AGE_PERIOD_REGEX = r'(\d*세) ?~ ?(\d*세)'
+AGE_REGEX = r'\d*'
 POLICY_CODE = {
     '일자리 분야': '023010',
     '주거 분야': '023020',
@@ -298,7 +301,7 @@ GOVERNMENT_CODE = {
 @app.post("/start")
 async def kakaoChat(request: Request):
     kakaorequest = await request.json()
-    responseData = botRequestProcess(kakaorequest)
+    responseData = botRequestProcess(kakaorequest, True)
     return responseData
 
 
@@ -309,20 +312,25 @@ async def kakaoChat(request: Request):
     return responseData
 
 
-def botRequestProcess(kakaorequest):
-    kakaoUID = kakaorequest['userRequest']['user']['properties']['plusfriendUserKey']
+def botRequestProcess(kakaorequest, forceStart=False):
+    kakaoUid = kakaorequest['userRequest']['user']['properties']['plusfriendUserKey']
+
+    if forceStart:
+        kakaorequest["userRequest"]["utterance"] = '시작하기'
 
     runFlag = False
     startTime = time.time()
 
-    # 응답 결과를 저장하기 위한 정보 생서 
-    if searchKakaoUser(kakaoUID) is None:
-        newKakaoUser(kakaoUID)
+    # 응답 결과를 저장하기 위한 정보 생성
+    controlInfo = searchControlInfo(kakaoUid)
+    if controlInfo is None:
+        newKakaoUser(kakaoUid)
+        controlInfo = searchControlInfo(kakaoUid)
 
     # 답변 생성 함수 실행
     botQueue = q.Queue()
-    requestProcess = threading.Thread(target=getYouthPolicy,
-                                       args=(kakaoUID, kakaorequest, botQueue))
+    requestProcess = threading.Thread(target=chatbotProxy,
+                                      args=(kakaoUid, kakaorequest, botQueue, controlInfo))
     requestProcess.start()
 
     # 답변 생성 시간 체크
@@ -342,230 +350,309 @@ def botRequestProcess(kakaorequest):
     return response
 
 
-def getYouthPolicy(kakaoUID, request, botQueue):
+def chatbotProxy(kakaoUid, request, botQueue, controlInfo):
     userMessage = request["userRequest"]["utterance"]
 
-    if '다 찾았나요?' in userMessage:
-        searchControlData = searchKakaoUser(kakaoUID)
-        
-        lastUpdate = searchControlData['content']
+    returnData = errorMessage()
 
-        if len(lastUpdate.split()) > 1:
-            bot_res = json.loads(lastUpdate[4:])
-            botQueue.put(bot_res)
-            searchReset(kakaoUID)
-    elif '/help ask' in userMessage:
-        botQueue.put({
-            "version": "2.0",
-            "template": {
-                "outputs": [
-                    {
-                        "textCard": {
-                            "title": "정책 검색 명령어를 설명드릴게요!",
-                            "description": "/ask : 정책을 검색할 수 있는 명령어에요!\n예시) /ask 시(도)/구(군)/만나이",
-                            "buttons": [
-                                {
-                                    "action": "message",
-                                    "label": "도시 목록 확인하기",
-                                    "messageText": "/help 도시목록"
-                                },
-                                {
-                                    "action": "message",
-                                    "label": "지역구 목록 확인하기",
-                                    "messageText": "/help 지역구목록"
-                                }
-                            ]
-                        }
-                    }
-                ],
-                "quickReplies": []
-            }})
-    elif '/help 도시목록' in userMessage:
-        botQueue.put({
-            "version": "2.0",
-            "template": {
-                "outputs": [
-                    {
-                        "textCard": {
-                            "title": f"도시 목록을 아래에 적어 둘게요!",
-                            "description": ", ".join(GOVERNMENT_CODE.keys())
-                        }
-                    }
-                ],
-                "quickReplies": []
-            }})
-    elif '/help 지역구목록' in userMessage:
-        cityName = userMessage.replace("/help 지역구목록 ", "")
-        if cityName not in GOVERNMENT_CODE.keys():
-            govTitle = "아래 명령어 형식으로 검색해주세요"
-            govMessage = "/help 지역구목록 서울 과 같은 형식으로 입력하면 검색할 수 있어요!"
+    if userMessage is None or userMessage == 'null':
+        return botQueue.put(returnData)
+
+    if "시작하기" in userMessage:
+        returnData = step1(kakaoUid)
+    elif controlInfo['step'] == 1:
+        returnData = step2(kakaoUid)
+    elif controlInfo['step'] == 2:
+        if userMessage in GOVERNMENT_CODE.keys():
+            step2Input(kakaoUid, userMessage)
+            returnData = step3(kakaoUid, userMessage)
         else:
-            govTitle = f"{cityName} 지역구를 아래에 적어 둘게요!"
-            govMessage = ", ".join(GOVERNMENT_CODE[cityName].keys())
-
-        botQueue.put({
-            "version": "2.0",
-            "template": {
-                "outputs": [
-                    {
-                        "textCard": {
-                            "title": govTitle,
-                            "description": govMessage
-                        }
-                    }
-                ],
-                "quickReplies": []
-            }})
-    elif '/help' in userMessage:
-        botQueue.put({
-            "version": "2.0",
-            "template": {
-                "outputs": [
-                    {
-                        "textCard": {
-                            "title": "도움이 필요하신가요?",
-                            "description": "사용하시려는 기능을 선택해주세요!",
-                            "buttons": [
-                                {
-                                    "action": "message",
-                                    "label": "정책 검색",
-                                    "messageText": "/help ask"
-                                }
-                            ]
-                        }
-                    }
-                ]
-            }})
-    elif '/ask ' in userMessage:
-        searchReset(kakaoUID)
-        prompt = userMessage.replace("/ask ", "")
-        splitPrompt = prompt.split('/')
-
-        if len(splitPrompt) < 2:
-            return errorMessage()
-
-        city = splitPrompt[0]
-        government = splitPrompt[1]
-        age = splitPrompt[2]
-        bot_res = callYouthPolicyAndGpt(city, government, age)
-        botQueue.put(bot_res)
-
-        writeYouthContent(kakaoUID, json.dumps(bot_res))
-    else:
-        botQueue.put(errorMessage())
-
-
-def callYouthPolicyAndGpt(citySelect, governmentSelect, age):
-    if citySelect is None \
-            or citySelect == 'null' \
-            or citySelect not in GOVERNMENT_CODE.keys() \
-            or governmentSelect is None \
-            or governmentSelect == 'null' \
-            or governmentSelect not in GOVERNMENT_CODE[citySelect].keys() \
-            or age is None \
-            or age == 'null':
-        return errorMessage()
-
-    query = {
-        'openApiVlak': os.getenv('YOUTH_POLICY_KEY'),
-        'display': 100,
-        'pageIndex': 1,
-        'srchPolyBizSecd': GOVERNMENT_CODE[citySelect][governmentSelect]
-    }
-
-    youthPolicyRespone = requests.get(YOUTH_API_HOST, params=query)
-
-    youthPolicyXml = youthPolicyRespone.text
-
-    youthPolicyJson = json.loads(json.dumps(xmltodict.parse(youthPolicyXml), indent=4))
-
-    if youthPolicyJson['youthPolicyList']['totalCnt'] == '0':
-        return notFoundMessage()
-
-    if isinstance(youthPolicyJson['youthPolicyList']['youthPolicy'], dict):
-        youthPolicyJson['youthPolicyList']['youthPolicy'] = [youthPolicyJson['youthPolicyList']['youthPolicy']]
-
-    ibotMessage = [{
-        "simpleText": {
-            "text": "신청 가능한 정책을 찾았어요!"
-        }
-    }, {
-        "carousel": {
-            "type": "textCard",
-            "items": []
-        }
-    }]
-
-    for policyData in youthPolicyJson['youthPolicyList']['youthPolicy']:
-        betweenPeriod = False
-        betweenAge = False
-
-        print("신청 기간 : " + policyData['rqutPrdCn'])
-        print("신청 연령 : " + policyData['ageInfo'])
-
-        policyApplyPeriod = re.search(DATE_PERIOD_REGEX, policyData['rqutPrdCn'])
-
-        if policyApplyPeriod is None:
-            betweenPeriod = True
+            returnData = cityErrorMessage()
+    elif controlInfo['step'] == 3:
+        if userMessage in GOVERNMENT_CODE[controlInfo['city']].keys():
+            step3Input(kakaoUid, userMessage)
+            returnData = step4(kakaoUid)
         else:
-            policyApplyPeriod = policyApplyPeriod.group()
-            policyApplyPeriodSplit = policyApplyPeriod.split('~')
-            startDate = date.fromisoformat(policyApplyPeriodSplit[0].strip())
-            endDate = date.fromisoformat(policyApplyPeriodSplit[1].strip())
-
-            if startDate <= date.today() and endDate >= date.today():
-                betweenPeriod = True
-
-        policyAge = re.search(AGE_PERIOD_REGEX, policyData['ageInfo'])
-        if policyAge is None:
-            betweenAge = True
+            returnData = govermentErrorMessage()
+    elif controlInfo['step'] == 4 and '정책 검색' not in userMessage:
+        ageMatchData = re.search(AGE_REGEX, userMessage)
+        age = ageMatchData.group()
+        if age is not None and age != '':
+            step4Input(kakaoUid, age)
+            returnData = step5PreMessage(controlInfo['city'], controlInfo['goverment'], age)
         else:
-            policyAge = policyAge.group()
-            policyAgeSplit = policyAge.split('~')
-            startAge = policyAgeSplit[0].strip()[:-1]
-            endAge = policyAgeSplit[1].strip()[:-1]
+            returnData = ageErrorMessage()
+    elif controlInfo['step'] == 4 and '정책 검색' in userMessage:
+        returnData = step5(controlInfo['city'], controlInfo['goverment'], controlInfo['age'])
 
-            if startAge <= age and endAge >= age:
-                betweenAge = True
+        writeYouthContent(kakaoUid, json.dumps(returnData))
+    elif controlInfo['step'] == 4 and '다 찾았나요?' in userMessage:
+        if len(controlInfo['content'].split()) > 1:
+            bot_res = json.loads(controlInfo['content'])
+            returnData = bot_res
+            searchReset(kakaoUid)
 
-        if betweenPeriod and betweenAge:
-            ibotMessage[1]['carousel']['items'].append({
-                'title': policyData['polyBizSjnm'],
-                'description': policyData['sporCn'],
-                'buttons': [
-                    {
-                        "action": "webLink",
-                        "label": "참고 사이트 1",
-                        "webLinkUrl": policyData['rfcSiteUrla1']
-                    },
-                    {
-                        "action": "webLink",
-                        "label": "참고 사이트 2",
-                        "webLinkUrl": policyData['rfcSiteUrla2']
-                    },
-                    {
-                        "action": "webLink",
-                        "label": "신청 사이트",
-                        "webLinkUrl": policyData['rqutUrla']
+    return botQueue.put(returnData)
+
+
+def step1(kakaoUid):
+    searchReset(kakaoUid)
+
+    return {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "textCard": {
+                        "title": "청년 정책이 궁금하신가요?",
+                        "description": "안녕하세요! 지원 되는 청년 정책을 간편하게 알려드리는 청년 정책 알고 있니? 입니다!\n시작하시려면 아래 도시 지정하기를 클릭해주세요.",
+                        "buttons": [
+                            {
+                                "action": "message",
+                                "label": "도시 지정하기",
+                                "messageText": "도시 지정하기"
+                            }
+                        ]
                     }
-                ]
-            })
-
-        print(f"신청 기간에 포함 여부 : {betweenPeriod}")
-        print(f"신청 연령에 포함 여부 : {betweenAge}")
-        print("=======================================")
-
-    if len(ibotMessage[1]['carousel']['items']) < 1:
-        return notFoundMessage()
-
-    ibotMsgFormatData = {
-        'version': '2.0',
-        'template': {
-            'outputs': ibotMessage,
-            'quickReplies': []
+                }
+            ],
+            "quickReplies": [
+                {
+                    "action": "message",
+                    "label": "처음으로",
+                    "messageText": "시작하기"
+                }
+            ]
         }}
 
-    return ibotMsgFormatData
+
+def step2(kakaoUid):
+    setSearchStep(kakaoUid, 2)
+
+    return {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "textCard": {
+                        "title": "검색을 원하시는 도시를 입력해주세요!",
+                        "description": ", ".join(GOVERNMENT_CODE.keys())
+                    }
+                }
+            ],
+            "quickReplies": [
+                {
+                    "action": "message",
+                    "label": "처음으로",
+                    "messageText": "시작하기"
+                }
+            ]
+        }}
+
+
+def step2Input(kakaoUid, cityName):
+    setSearchCity(kakaoUid, cityName)
+
+
+def step3(kakaoUid, cityName):
+    setSearchStep(kakaoUid, 3)
+
+    return {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "textCard": {
+                        "title": f"{cityName} 지역구를 아래에 적어 둘게요!",
+                        "description": ", ".join(GOVERNMENT_CODE[cityName].keys())
+                    }
+                }
+            ],
+            "quickReplies": [
+                {
+                    "action": "message",
+                    "label": "처음으로",
+                    "messageText": "시작하기"
+                }
+            ]
+        }}
+
+
+def step3Input(kakaoUid, govName):
+    setSearchGoverment(kakaoUid, govName)
+
+
+def step4(kakaoUid):
+    setSearchStep(kakaoUid, 4)
+
+    return {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "textCard": {
+                        "title": "마지막으로 만 나이를 입력해주세요!",
+                        "description": "신청 가능한 연령 확인을 위해 만 나이를 숫자만 입력해주세요!"
+                    }
+                }
+            ],
+            "quickReplies": [
+                {
+                    "action": "message",
+                    "label": "처음으로",
+                    "messageText": "시작하기"
+                }
+            ]
+        }}
+
+
+def step4Input(kakaoUid, age):
+    setSearchAge(kakaoUid, age)
+
+
+def step5PreMessage(city, gov, age):
+    return {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "textCard": {
+                        "title": "입력하신 정보로 정책을 찾아볼게요!",
+                        "description": f"아래 정보로 정책을 찾으시려면 정책 검색 버튼을 눌러주세요!\n도시 : {city}\n지역구 : {gov}\n만 나이 : {age}",
+                        "buttons": [
+                            {
+                                "action": "message",
+                                "label": "정책 검색",
+                                "messageText": "정책 검색"
+                            }
+                        ]
+                    }
+                }
+            ],
+            "quickReplies": [
+                {
+                    "action": "message",
+                    "label": "처음으로",
+                    "messageText": "시작하기"
+                }
+            ]
+        }}
+
+
+def step5(citySelect, governmentSelect, age):
+    try:
+        if citySelect is None \
+                or citySelect == 'null' \
+                or citySelect not in GOVERNMENT_CODE.keys() \
+                or governmentSelect is None \
+                or governmentSelect == 'null' \
+                or governmentSelect not in GOVERNMENT_CODE[citySelect].keys() \
+                or age is None \
+                or age == 'null':
+            return errorMessage()
+
+        query = {
+            'openApiVlak': os.getenv('YOUTH_POLICY_KEY'),
+            'display': 100,
+            'pageIndex': 1,
+            'srchPolyBizSecd': GOVERNMENT_CODE[citySelect][governmentSelect]
+        }
+
+        youthPolicyRespone = requests.get(YOUTH_API_HOST, params=query)
+
+        youthPolicyXml = youthPolicyRespone.text
+
+        youthPolicyJson = json.loads(json.dumps(xmltodict.parse(youthPolicyXml), indent=4))
+
+        if youthPolicyJson['youthPolicyList']['totalCnt'] == '0':
+            return notFoundMessage()
+
+        if isinstance(youthPolicyJson['youthPolicyList']['youthPolicy'], dict):
+            youthPolicyJson['youthPolicyList']['youthPolicy'] = [youthPolicyJson['youthPolicyList']['youthPolicy']]
+
+        ibotMessage = [{
+            "simpleText": {
+                "text": "신청 가능한 정책을 찾았어요!"
+            }
+        }, {
+            "carousel": {
+                "type": "textCard",
+                "items": []
+            }
+        }]
+
+        for policyData in youthPolicyJson['youthPolicyList']['youthPolicy']:
+            betweenPeriod = False
+            betweenAge = False
+
+            print("신청 기간 : " + policyData['rqutPrdCn'])
+            print("신청 연령 : " + policyData['ageInfo'])
+
+            policyApplyPeriod = re.search(DATE_PERIOD_REGEX, policyData['rqutPrdCn'])
+
+            if policyApplyPeriod is None:
+                betweenPeriod = True
+            else:
+                policyApplyPeriod = policyApplyPeriod.group()
+                policyApplyPeriodSplit = policyApplyPeriod.split('~')
+                startDate = date.fromisoformat(policyApplyPeriodSplit[0].strip())
+                endDate = date.fromisoformat(policyApplyPeriodSplit[1].strip())
+
+                if startDate <= date.today() and endDate >= date.today():
+                    betweenPeriod = True
+
+            policyAge = re.search(AGE_PERIOD_REGEX, policyData['ageInfo'])
+            if policyAge is None:
+                betweenAge = True
+            else:
+                policyAge = policyAge.group()
+                policyAgeSplit = policyAge.split('~')
+                startAge = int(policyAgeSplit[0].strip()[:-1])
+                endAge = int(policyAgeSplit[1].strip()[:-1])
+
+                if startAge <= age and endAge >= age:
+                    betweenAge = True
+
+            if betweenPeriod and betweenAge:
+                ibotMessage[1]['carousel']['items'].append({
+                    'title': policyData['polyBizSjnm'],
+                    'description': policyData['sporCn'],
+                    'buttons': [
+                        {
+                            "action": "webLink",
+                            "label": "참고 사이트 1",
+                            "webLinkUrl": policyData['rfcSiteUrla1']
+                        },
+                        {
+                            "action": "webLink",
+                            "label": "참고 사이트 2",
+                            "webLinkUrl": policyData['rfcSiteUrla2']
+                        },
+                        {
+                            "action": "webLink",
+                            "label": "신청 사이트",
+                            "webLinkUrl": policyData['rqutUrla']
+                        }
+                    ]
+                })
+
+            print(f"신청 기간에 포함 여부 : {betweenPeriod}")
+            print(f"신청 연령에 포함 여부 : {betweenAge}")
+            print("=======================================")
+
+        if len(ibotMessage[1]['carousel']['items']) < 1:
+            return notFoundMessage()
+
+        ibotMsgFormatData = {
+            'version': '2.0',
+            'template': {
+                'outputs': ibotMessage,
+                'quickReplies': []
+            }}
+
+        return ibotMsgFormatData
+    except:
+        return errorMessage()
 
 
 def timeover():
@@ -595,13 +682,81 @@ def errorMessage():
             "outputs": [
                 {
                     "simpleText": {
-                        "text": "명령어를 이해하지 못했어요..\n\n정책을 검색하시려면 형식에 맞게 입력해주세요!\n\n/ask 서울/광진구/20\n\n명령어를 확인하고 싶으시면 /help를 입력해주세요!"
+                        "text": "정책 검색 중에 오류가 발생되었습니다.. ㅜㅜ\n처음부터 다시 시작해주세요.. ㅜㅜ"
                     }
                 }
             ],
-            "quickReplies": []
+            "quickReplies": [
+                {
+                    "action": "message",
+                    "label": "처음으로",
+                    "messageText": "시작하기"
+                }
+            ]
         }}
 
+
+def cityErrorMessage():
+    return {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "simpleText": {
+                        "text": "도시명이 올바르지 않습니다. 다시 입력해주세요."
+                    }
+                }
+            ],
+            "quickReplies": [
+                {
+                    "action": "message",
+                    "label": "처음으로",
+                    "messageText": "시작하기"
+                }
+            ]
+        }}
+
+
+def govermentErrorMessage():
+    return {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "simpleText": {
+                        "text": "지역구명이 올바르지 않습니다. 다시 입력해주세요."
+                    }
+                }
+            ],
+            "quickReplies": [
+                {
+                    "action": "message",
+                    "label": "처음으로",
+                    "messageText": "시작하기"
+                }
+            ]
+        }}
+
+
+def ageErrorMessage():
+    return {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "simpleText": {
+                        "text": "만 나이가 숫자가 아닙니다. 다시 입력해주세요."
+                    }
+                }
+            ],
+            "quickReplies": [
+                {
+                    "action": "message",
+                    "label": "처음으로",
+                    "messageText": "시작하기"
+                }
+            ]
+        }}
 
 def notFoundMessage():
     return {
@@ -614,10 +769,17 @@ def notFoundMessage():
                     }
                 }
             ],
-            "quickReplies": []
+            "quickReplies": [
+                {
+                    "action": "message",
+                    "label": "처음으로",
+                    "messageText": "시작하기"
+                }
+            ]
         }}
 
-def searchKakaoUser(kakaoUid):
+
+def searchControlInfo(kakaoUid):
     cur = DB_CONN.cursor()
     sql = 'SELECT * FROM searchControl WHERE kakaoUid = %s'
     cur.execute(sql, kakaoUid)
@@ -642,13 +804,46 @@ def writeYouthContent(kakaoUid, content):
     DB_CONN.commit()
 
 
-def searchReset(kakaoUid):
+def setSearchStep(kakaoUid, step):
     cur = DB_CONN.cursor()
     cur.execute(
-        'UPDATE searchControl SET content = null WHERE kakaoUid = %s',
-        kakaoUid
+        'UPDATE searchControl SET step = %s WHERE kakaoUid = %s',
+        (step, kakaoUid)
     )
     DB_CONN.commit()
 
 
+def setSearchCity(kakaoUid, city):
+    cur = DB_CONN.cursor()
+    cur.execute(
+        'UPDATE searchControl SET city = %s WHERE kakaoUid = %s',
+        (city, kakaoUid)
+    )
+    DB_CONN.commit()
 
+
+def setSearchGoverment(kakaoUid, goverment):
+    cur = DB_CONN.cursor()
+    cur.execute(
+        'UPDATE searchControl SET goverment = %s WHERE kakaoUid = %s',
+        (goverment, kakaoUid)
+    )
+    DB_CONN.commit()
+
+
+def setSearchAge(kakaoUid, age):
+    cur = DB_CONN.cursor()
+    cur.execute(
+        'UPDATE searchControl SET age = %s WHERE kakaoUid = %s',
+        (age, kakaoUid)
+    )
+    DB_CONN.commit()
+
+
+def searchReset(kakaoUid):
+    cur = DB_CONN.cursor()
+    cur.execute(
+        'UPDATE searchControl SET step = 1, city = null, goverment = null, age = null, content = null WHERE kakaoUid = %s',
+        kakaoUid
+    )
+    DB_CONN.commit()
