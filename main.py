@@ -22,6 +22,7 @@ DB_CONN = pymysql.connect(host=os.getenv('DB_HOST'), port=int(os.getenv('DB_PORT
 YOUTH_API_HOST = 'https://www.youthcenter.go.kr/opi/youthPlcyList.do'
 DATE_PERIOD_REGEX = r'\d{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01]) ?~ ?\d{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])'
 AGE_PERIOD_REGEX = r'(\d*세) ?~ ?(\d*세)'
+URL_REGEX = r'^https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\\+.~#?&\/=]*)$'
 AGE_REGEX = r'\d*'
 POLICY_CODE = {
     '일자리 분야': '023010',
@@ -620,24 +621,25 @@ def step5(kakaoUid, citySelect, governmentSelect, age):
                     'buttons': policyBtnList
                 })
 
-                if policyData['rfcSiteUrla1'] != 'null':
+                if policyData['rfcSiteUrla1'] not in ('null', '-') and re.search(URL_REGEX, policyData['rfcSiteUrla1']) is not None:
                     policyBtnList.append({
                         "action": "webLink",
                         "label": "참고 사이트 1",
                         "webLinkUrl": policyData['rfcSiteUrla1']
                     })
-                if policyData['rfcSiteUrla2'] != 'null':
+                if policyData['rfcSiteUrla2'] not in ('null', '-') and re.search(URL_REGEX, policyData['rfcSiteUrla2']) is not None:
                     policyBtnList.append({
                         "action": "webLink",
                         "label": "참고 사이트 2",
                         "webLinkUrl": policyData['rfcSiteUrla2']
                     })
-                if policyData['rqutUrla'] != 'null':
+                if policyData['rqutUrla'] not in ('null', '-') and re.search(URL_REGEX, policyData['rqutUrla']) is not None:
                     policyBtnList.append({
                         "action": "webLink",
                         "label": "신청 사이트",
                         "webLinkUrl": policyData['rqutUrla']
                     })
+                print(policyBtnList)
 
         if len(ibotMessage[1]['carousel']['items']) < 1:
             return notFoundMessage()
