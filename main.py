@@ -383,10 +383,10 @@ def chatbotProxy(kakaoUid, request, botQueue, controlInfo):
         else:
             returnData = ageErrorMessage()
     elif controlInfo['step'] == 4 and '정책 검색' in userMessage:
-        returnData = step5(controlInfo['city'], controlInfo['goverment'], controlInfo['age'])
+        returnData = step5(kakaoUid, controlInfo['city'], controlInfo['goverment'], controlInfo['age'])
 
         writeYouthContent(kakaoUid, json.dumps(returnData))
-    elif controlInfo['step'] == 4 and '다 찾았나요?' in userMessage:
+    elif controlInfo['step'] == 5 and '다 찾았나요?' in userMessage:
         if len(controlInfo['content'].split()) > 1:
             bot_res = json.loads(controlInfo['content'])
             returnData = bot_res
@@ -539,7 +539,9 @@ def step5PreMessage(city, gov, age):
         }}
 
 
-def step5(citySelect, governmentSelect, age):
+def step5(kakaoUid, citySelect, governmentSelect, age):
+    setSearchStep(kakaoUid, 5)
+
     try:
         if citySelect is None \
                 or citySelect == 'null' \
