@@ -360,8 +360,11 @@ def chatbotProxy(kakaoUid, request, botQueue, controlInfo):
 
     if "시작하기" in userMessage:
         returnData = step1(kakaoUid)
-    elif controlInfo['step'] == 1 and '도시 지정하기' in userMessage:
-        returnData = step2(kakaoUid)
+    elif controlInfo['step'] == 1:
+        if '도시 지정하기' in userMessage:
+            returnData = step2(kakaoUid)
+        else:
+            returnData = commandErrorMessage()
     elif controlInfo['step'] == 2:
         if userMessage in GOVERNMENT_CODE.keys():
             step2Input(kakaoUid, userMessage)
@@ -622,22 +625,22 @@ def step5(kakaoUid, citySelect, governmentSelect, age):
 
                 if policyData['rfcSiteUrla1'] != 'null':
                     policyBtnList.append({
-                            "action": "webLink",
-                            "label": "참고 사이트 1",
-                            "webLinkUrl": policyData['rfcSiteUrla1']
-                        })
+                        "action": "webLink",
+                        "label": "참고 사이트 1",
+                        "webLinkUrl": policyData['rfcSiteUrla1']
+                    })
                 if policyData['rfcSiteUrla2'] != 'null':
-                    policyBtnList.append( {
-                            "action": "webLink",
-                            "label": "참고 사이트 2",
-                            "webLinkUrl": policyData['rfcSiteUrla2']
-                        })
+                    policyBtnList.append({
+                        "action": "webLink",
+                        "label": "참고 사이트 2",
+                        "webLinkUrl": policyData['rfcSiteUrla2']
+                    })
                 if policyData['rqutUrla'] != 'null':
                     policyBtnList.append({
-                            "action": "webLink",
-                            "label": "신청 사이트",
-                            "webLinkUrl": policyData['rqutUrla']
-                        })
+                        "action": "webLink",
+                        "label": "신청 사이트",
+                        "webLinkUrl": policyData['rqutUrla']
+                    })
 
         if len(ibotMessage[1]['carousel']['items']) < 1:
             return notFoundMessage()
@@ -655,13 +658,14 @@ def step5(kakaoUid, citySelect, governmentSelect, age):
 
 
 def timeover():
-    response = {
+    return {
         "version": "2.0",
         "template": {
             "outputs": [
                 {
-                    "simpleText": {
-                        "text": "아직 찾지 못했어요..🙏🙏\n5초뒤에 아래 말풍선을 눌러주세요👆"
+                    "textCard": {
+                        "title": "열심히 정책을 찾는 중이에요",
+                        "description": '아직 찾지 못했어요..🙏🙏\n5초뒤에 아래 말풍선을 눌러주세요👆'
                     }
                 }
             ],
@@ -670,8 +674,14 @@ def timeover():
                     "action": "message",
                     "label": "다 찾았나요?🙋",
                     "messageText": "다 찾았나요?"
-                }]}}
-    return response
+                },
+                {
+                    "action": "message",
+                    "label": "처음으로",
+                    "messageText": "시작하기"
+                }
+            ]
+        }}
 
 
 def errorMessage():
@@ -680,8 +690,9 @@ def errorMessage():
         "template": {
             "outputs": [
                 {
-                    "simpleText": {
-                        "text": "정책 검색 중에 오류가 발생되었습니다.. ㅜㅜ\n처음부터 다시 시작해주세요.. ㅜㅜ"
+                    "textCard": {
+                        "title": "오류가 발생되었습니다",
+                        "description": '정책 검색 중에 오류가 발생되었습니다..\n처음부터 다시 시작해주세요.'
                     }
                 }
             ],
@@ -701,8 +712,9 @@ def cityErrorMessage():
         "template": {
             "outputs": [
                 {
-                    "simpleText": {
-                        "text": "도시명이 올바르지 않습니다. 다시 입력해주세요."
+                    "textCard": {
+                        "title": "입력된 도시명이 이상해요!",
+                        "description": '도시명이 올바르지 않습니다. 다시 입력해주세요.'
                     }
                 }
             ],
@@ -722,8 +734,9 @@ def govermentErrorMessage():
         "template": {
             "outputs": [
                 {
-                    "simpleText": {
-                        "text": "지역구명이 올바르지 않습니다. 다시 입력해주세요."
+                    "textCard": {
+                        "title": "입력된 지역구명이 이상해요!",
+                        "description": '지역구명이 올바르지 않습니다. 다시 입력해주세요.'
                     }
                 }
             ],
@@ -743,8 +756,9 @@ def ageErrorMessage():
         "template": {
             "outputs": [
                 {
-                    "simpleText": {
-                        "text": "만 나이가 숫자가 아닙니다. 다시 입력해주세요."
+                    "textCard": {
+                        "title": "입력된 만나이가 이상해요!",
+                        "description": '만 나이가 숫자가 아닙니다. 다시 입력해주세요.'
                     }
                 }
             ],
@@ -757,14 +771,38 @@ def ageErrorMessage():
             ]
         }}
 
+
+def commandErrorMessage():
+    return {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "textCard": {
+                        "title": "이해할 수 없는 명령어에요.",
+                        "description": '죄송해요.. 명령어를 이해하지 못했어요..\n처음으로를 클릭하여 처음부터 다시시작 해주세요.'
+                    }
+                }
+            ],
+            "quickReplies": [
+                {
+                    "action": "message",
+                    "label": "처음으로",
+                    "messageText": "시작하기"
+                }
+            ]
+        }}
+
+
 def notFoundMessage():
     return {
         "version": "2.0",
         "template": {
             "outputs": [
                 {
-                    "simpleText": {
-                        "text": "신청가능한 정책이 없어요.. ㅜㅜ"
+                    "textCard": {
+                        "title": "신청 가능한 정책이 없어요..",
+                        "description": '신청 가능한 정책이 없어요..\n원하신다면 다른 지역을 찾아드릴 수 있습니다!\n다른 지역을 알아보시려면 처음으로 버튼을 클릭해주세요!'
                     }
                 }
             ],
