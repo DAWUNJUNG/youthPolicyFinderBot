@@ -1,0 +1,13 @@
+version: "3.7"
+
+services:
+  youth-policy-finder-bot:
+    container_name: youth-policy-finder-bot
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: gunicorn -w 10 -k uvicorn.workers.UvicornWorker main:app -b 0.0.0.0:${SERVER_LOCAL_PORT} --timeout=180
+    ports:
+      - ${SERVER_PUBLIC_PORT}:${SERVER_LOCAL_PORT}
+    volumes:
+      - ./:/home/app
