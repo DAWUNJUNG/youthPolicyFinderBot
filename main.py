@@ -361,10 +361,7 @@ def chatbotProxy(kakaoUid, request, botQueue, controlInfo):
     if "시작하기" in userMessage:
         returnData = step1(kakaoUid)
     elif controlInfo['step'] == 1:
-        if '도시 지정하기' in userMessage:
-            returnData = step2(kakaoUid)
-        else:
-            returnData = commandErrorMessage()
+        returnData = step2(kakaoUid)
     elif controlInfo['step'] == 2:
         if userMessage in GOVERNMENT_CODE.keys():
             step2Input(kakaoUid, userMessage)
