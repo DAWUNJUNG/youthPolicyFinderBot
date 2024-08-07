@@ -585,9 +585,6 @@ def step5(citySelect, governmentSelect, age):
             betweenPeriod = False
             betweenAge = False
 
-            print("신청 기간 : " + policyData['rqutPrdCn'])
-            print("신청 연령 : " + policyData['ageInfo'])
-
             policyApplyPeriod = re.search(DATE_PERIOD_REGEX, policyData['rqutPrdCn'])
 
             if policyApplyPeriod is None:
@@ -614,31 +611,31 @@ def step5(citySelect, governmentSelect, age):
                     betweenAge = True
 
             if betweenPeriod and betweenAge:
+                policyBtnList = []
                 ibotMessage[1]['carousel']['items'].append({
                     'title': policyData['polyBizSjnm'],
                     'description': policyData['sporCn'],
-                    'buttons': [
-                        {
+                    'buttons': policyBtnList
+                })
+
+                if policyData['rfcSiteUrla1'] != 'null':
+                    policyBtnList.append({
                             "action": "webLink",
                             "label": "참고 사이트 1",
                             "webLinkUrl": policyData['rfcSiteUrla1']
-                        },
-                        {
+                        })
+                if policyData['rfcSiteUrla2'] != 'null':
+                    policyBtnList.append( {
                             "action": "webLink",
                             "label": "참고 사이트 2",
                             "webLinkUrl": policyData['rfcSiteUrla2']
-                        },
-                        {
+                        })
+                if policyData['rqutUrla'] != 'null':
+                    policyBtnList.append({
                             "action": "webLink",
                             "label": "신청 사이트",
                             "webLinkUrl": policyData['rqutUrla']
-                        }
-                    ]
-                })
-
-            print(f"신청 기간에 포함 여부 : {betweenPeriod}")
-            print(f"신청 연령에 포함 여부 : {betweenAge}")
-            print("=======================================")
+                        })
 
         if len(ibotMessage[1]['carousel']['items']) < 1:
             return notFoundMessage()
