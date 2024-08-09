@@ -838,7 +838,7 @@ def newKakaoUser(kakaoUid):
 def writeYouthContent(kakaoUid, content):
     cur = DB_CONN.cursor()
     cur.execute(
-        'UPDATE searchControl SET content = %s WHERE kakaoUid = %s',
+        'UPDATE searchControl SET content = %s, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
         (content, kakaoUid)
     )
     DB_CONN.commit()
@@ -847,7 +847,7 @@ def writeYouthContent(kakaoUid, content):
 def setSearchStep(kakaoUid, step):
     cur = DB_CONN.cursor()
     cur.execute(
-        'UPDATE searchControl SET step = %s WHERE kakaoUid = %s',
+        'UPDATE searchControl SET step = %s, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
         (step, kakaoUid)
     )
     DB_CONN.commit()
@@ -856,7 +856,7 @@ def setSearchStep(kakaoUid, step):
 def setSearchCity(kakaoUid, city):
     cur = DB_CONN.cursor()
     cur.execute(
-        'UPDATE searchControl SET city = %s WHERE kakaoUid = %s',
+        'UPDATE searchControl SET city = %s, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
         (city, kakaoUid)
     )
     DB_CONN.commit()
@@ -865,7 +865,7 @@ def setSearchCity(kakaoUid, city):
 def setSearchGoverment(kakaoUid, goverment):
     cur = DB_CONN.cursor()
     cur.execute(
-        'UPDATE searchControl SET goverment = %s WHERE kakaoUid = %s',
+        'UPDATE searchControl SET goverment = %s, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
         (goverment, kakaoUid)
     )
     DB_CONN.commit()
@@ -874,7 +874,7 @@ def setSearchGoverment(kakaoUid, goverment):
 def setSearchAge(kakaoUid, age):
     cur = DB_CONN.cursor()
     cur.execute(
-        'UPDATE searchControl SET age = %s WHERE kakaoUid = %s',
+        'UPDATE searchControl SET age = %s, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
         (age, kakaoUid)
     )
     DB_CONN.commit()
@@ -883,7 +883,7 @@ def setSearchAge(kakaoUid, age):
 def searchReset(kakaoUid):
     cur = DB_CONN.cursor()
     cur.execute(
-        'UPDATE searchControl SET step = 1, city = null, goverment = null, age = null, content = null WHERE kakaoUid = %s',
+        'UPDATE searchControl SET step = 1, city = null, goverment = null, age = null, content = null, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
         kakaoUid
     )
     DB_CONN.commit()
