@@ -324,7 +324,7 @@ def botRequestProcess(kakaorequest, forceStart=False):
 
     # 응답 결과를 저장하기 위한 정보 생성
     controlInfo = searchControlInfo(kakaoUid)
-    if controlInfo is None:
+    if controlInfo['step'] == 5:
         newKakaoUser(kakaoUid)
         controlInfo = searchControlInfo(kakaoUid)
 
@@ -340,7 +340,10 @@ def botRequestProcess(kakaorequest, forceStart=False):
             # 3.5초 안에 답변이 완성되면 바로 값 리턴
             response = botQueue.get()
             runFlag = True
-            searchReset(kakaoUid)
+
+            # 마지막 질문 일 때만
+            if controlInfo['']:
+                searchReset(kakaoUid)
             break
         # 안정적인 구동을 위한 딜레이 타임 설정
         time.sleep(0.01)
