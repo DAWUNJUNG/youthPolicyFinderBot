@@ -340,6 +340,7 @@ def botRequestProcess(kakaorequest, forceStart=False):
             # 3.5초 안에 답변이 완성되면 바로 값 리턴
             response = botQueue.get()
             runFlag = True
+            searchReset(kakaoUid)
             break
         # 안정적인 구동을 위한 딜레이 타임 설정
         time.sleep(0.01)
