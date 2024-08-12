@@ -839,7 +839,7 @@ def newKakaoUser(kakaoUid):
         'INSERT INTO searchControl (kakaoUid) VALUES (%s)',
         kakaoUid
     )
-    cur.commit()
+    conn.commit()
     cur.close()
     conn.close()
 
@@ -851,7 +851,7 @@ def writeYouthContent(kakaoUid, content):
         'UPDATE searchControl SET content = %s, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
         (content, kakaoUid)
     )
-    cur.commit()
+    conn.commit()
     cur.close()
     conn.close()
 
@@ -863,7 +863,7 @@ def setSearchStep(kakaoUid, step):
         'UPDATE searchControl SET step = %s, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
         (step, kakaoUid)
     )
-    cur.commit()
+    conn.commit()
     cur.close()
     conn.close()
 
@@ -875,7 +875,7 @@ def setSearchCity(kakaoUid, city):
         'UPDATE searchControl SET city = %s, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
         (city, kakaoUid)
     )
-    cur.commit()
+    conn.commit()
     cur.close()
     conn.close()
 
@@ -887,7 +887,7 @@ def setSearchGoverment(kakaoUid, goverment):
         'UPDATE searchControl SET goverment = %s, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
         (goverment, kakaoUid)
     )
-    cur.commit()
+    conn.commit()
     cur.close()
     conn.close()
 
@@ -899,7 +899,7 @@ def setSearchAge(kakaoUid, age):
         'UPDATE searchControl SET age = %s, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
         (age, kakaoUid)
     )
-    cur.commit()
+    conn.commit()
     cur.close()
     conn.close()
 
@@ -911,6 +911,6 @@ def searchReset(kakaoUid):
         'UPDATE searchControl SET step = 1, city = null, goverment = null, age = null, content = null, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
         kakaoUid
     )
-    cur.commit()
+    conn.commit()
     cur.close()
     conn.close()
