@@ -815,86 +815,102 @@ def notFoundMessage():
         }}
 
 
-def dbConnCursor():
+def dbConn():
     return pymysql.connect(host=os.getenv('DB_HOST'), port=int(os.getenv('DB_PORT')), user=os.getenv('DB_USER'),
                               password=os.getenv('DB_PW'), db=os.getenv('DB_DATABASE'), charset='utf8',
-                              cursorclass=pymysql.cursors.DictCursor).cursor()
+                              cursorclass=pymysql.cursors.DictCursor)
 
 
 def searchControlInfo(kakaoUid):
-    cur = dbConnCursor()
+    conn = dbConn()
+    cur = conn.cursor()
     sql = 'SELECT * FROM searchControl WHERE kakaoUid = %s'
     cur.execute(sql, kakaoUid)
     searchResult = cur.fetchone()
     cur.close()
+    conn.close()
     return searchResult
 
 
 def newKakaoUser(kakaoUid):
-    cur = dbConnCursor()
+    conn = dbConn()
+    cur = conn.cursor()
     cur.execute(
         'INSERT INTO searchControl (kakaoUid) VALUES (%s)',
         kakaoUid
     )
     cur.commit()
     cur.close()
+    conn.close()
 
 
 def writeYouthContent(kakaoUid, content):
-    cur = dbConnCursor()
+    conn = dbConn()
+    cur = conn.cursor()
     cur.execute(
         'UPDATE searchControl SET content = %s, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
         (content, kakaoUid)
     )
     cur.commit()
     cur.close()
+    conn.close()
 
 
 def setSearchStep(kakaoUid, step):
-    cur = dbConnCursor()
+    conn = dbConn()
+    cur = conn.cursor()
     cur.execute(
         'UPDATE searchControl SET step = %s, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
         (step, kakaoUid)
     )
     cur.commit()
     cur.close()
+    conn.close()
 
 
 def setSearchCity(kakaoUid, city):
-    cur = dbConnCursor()
+    conn = dbConn()
+    cur = conn.cursor()
     cur.execute(
         'UPDATE searchControl SET city = %s, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
         (city, kakaoUid)
     )
     cur.commit()
     cur.close()
+    conn.close()
 
 
 def setSearchGoverment(kakaoUid, goverment):
-    cur = dbConnCursor()
+    conn = dbConn()
+    cur = conn.cursor()
     cur.execute(
         'UPDATE searchControl SET goverment = %s, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
         (goverment, kakaoUid)
     )
     cur.commit()
     cur.close()
+    conn.close()
 
 
 def setSearchAge(kakaoUid, age):
-    cur = dbConnCursor()
+    conn = dbConn()
+    cur = conn.cursor()
     cur.execute(
         'UPDATE searchControl SET age = %s, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
         (age, kakaoUid)
     )
     cur.commit()
     cur.close()
+    conn.close()
 
 
 def searchReset(kakaoUid):
-    cur = dbConnCursor()
+    conn = dbConn()
+    cur = conn.cursor()
     cur.execute(
         'UPDATE searchControl SET step = 1, city = null, goverment = null, age = null, content = null, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
         kakaoUid
     )
     cur.commit()
     cur.close()
+    conn.close()
