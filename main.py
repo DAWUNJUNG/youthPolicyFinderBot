@@ -297,6 +297,7 @@ GOVERNMENT_CODE = {
 
 @app.post("/start")
 async def kakaoChat(request: Request):
+    print('들어오ㅓㅁ')
     kakaorequest = await request.json()
     responseData = botRequestProcess(kakaorequest, True)
     return responseData
@@ -362,14 +363,17 @@ def chatbotProxy(kakaoUid, request, botQueue, controlInfo):
     if "시작하기" in userMessage:
         returnData = step1(kakaoUid)
     elif controlInfo['step'] == 1:
-        returnData = step2(kakaoUid)
+        if userMessage == '도시 지정하기':
+            returnData = step2(kakaoUid)
+        else:
+            returnData = step1ErrorMessage()
     elif controlInfo['step'] == 2:
         if userMessage in GOVERNMENT_CODE.keys():
             step2Input(kakaoUid, userMessage)
             returnData = step3(kakaoUid, userMessage)
         else:
             returnData = cityErrorMessage()
-    elif controlInfo['step'] == 3:
+    elif controlInfo['step'] == 3 and userMessage != '처음으로':
         if userMessage in GOVERNMENT_CODE[controlInfo['city']].keys():
             step3Input(kakaoUid, userMessage)
             returnData = step4(kakaoUid)
@@ -406,11 +410,11 @@ def step1(kakaoUid):
                 {
                     "textCard": {
                         "title": "청년 정책이 궁금하신가요?",
-                        "description": "안녕하세요! 지원 되는 청년 정책을 간편하게 알려드리는 청년 정책 알고 있니? 입니다!\n시작하시려면 아래 도시 지정하기를 클릭해주세요.",
+                        "description": "안녕하세요!\n지원 되는 청년 정책을 간편하게 알려드리는 청년 정책 알고 있니? 입니다!\n검색하고 싶으신 검색 방식을 선택해주세요!",
                         "buttons": [
                             {
                                 "action": "message",
-                                "label": "도시 지정하기",
+                                "label": "특정 지역 정책 알아보기",
                                 "messageText": "도시 지정하기"
                             }
                         ]
@@ -621,19 +625,22 @@ def step5(kakaoUid, citySelect, governmentSelect, age):
                     'buttons': policyBtnList
                 })
 
-                if policyData['rfcSiteUrla1'] not in ('null', '-') and re.search(URL_REGEX, policyData['rfcSiteUrla1']) is not None:
+                if policyData['rfcSiteUrla1'] not in ('null', '-') and re.search(URL_REGEX, policyData[
+                    'rfcSiteUrla1']) is not None:
                     policyBtnList.append({
                         "action": "webLink",
                         "label": "참고 사이트 1",
                         "webLinkUrl": policyData['rfcSiteUrla1']
                     })
-                if policyData['rfcSiteUrla2'] not in ('null', '-') and re.search(URL_REGEX, policyData['rfcSiteUrla2']) is not None:
+                if policyData['rfcSiteUrla2'] not in ('null', '-') and re.search(URL_REGEX, policyData[
+                    'rfcSiteUrla2']) is not None:
                     policyBtnList.append({
                         "action": "webLink",
                         "label": "참고 사이트 2",
                         "webLinkUrl": policyData['rfcSiteUrla2']
                     })
-                if policyData['rqutUrla'] not in ('null', '-') and re.search(URL_REGEX, policyData['rqutUrla']) is not None:
+                if policyData['rqutUrla'] not in ('null', '-') and re.search(URL_REGEX,
+                                                                             policyData['rqutUrla']) is not None:
                     policyBtnList.append({
                         "action": "webLink",
                         "label": "신청 사이트",
@@ -692,6 +699,35 @@ def errorMessage():
                     "textCard": {
                         "title": "오류가 발생되었습니다",
                         "description": '정책 검색 중에 오류가 발생되었습니다..\n처음부터 다시 시작해주세요.'
+                    }
+                }
+            ],
+            "quickReplies": [
+                {
+                    "action": "message",
+                    "label": "처음으로",
+                    "messageText": "시작하기"
+                }
+            ]
+        }}
+
+
+def step1ErrorMessage():
+    return {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "textCard": {
+                        "title": "정책 검색 방법을 잘못 선택하셨습니다.",
+                        "description": '정책 검색 방법을 다시 선택해주세요.',
+                        "buttons": [
+                            {
+                                "action": "message",
+                                "label": "특정 지역 정책 알아보기",
+                                "messageText": "도시 지정하기"
+                            }
+                        ]
                     }
                 }
             ],
@@ -817,8 +853,8 @@ def notFoundMessage():
 
 def dbConn():
     return pymysql.connect(host=os.getenv('DB_HOST'), port=int(os.getenv('DB_PORT')), user=os.getenv('DB_USER'),
-                              password=os.getenv('DB_PW'), db=os.getenv('DB_DATABASE'), charset='utf8',
-                              cursorclass=pymysql.cursors.DictCursor)
+                           password=os.getenv('DB_PW'), db=os.getenv('DB_DATABASE'), charset='utf8',
+                           cursorclass=pymysql.cursors.DictCursor)
 
 
 def searchControlInfo(kakaoUid):
