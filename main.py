@@ -294,6 +294,83 @@ GOVERNMENT_CODE = {
     }
 }
 
+CENTER_GOVERNMENT_CODE = {
+    '고용노동부' : '003001001',
+    '공정거래위원회' : '003001002',
+    '과학기술정보통신부' : '003001003',
+    '정보통신산업진흥원' : '003001003001',
+    '국가보훈부' : '003001004',
+    '국민권익위원회' : '003001005',
+    '국방부' : '003001006',
+    '국토교통부' : '003001007',
+    '주택도시보증공사' : '003001007001',
+    '금융위원회' : '003001008',
+    '서민금융진흥원' : '003001008001',
+    '기획재정부' : '003001009',
+    '농림축산식품부' : '003001010',
+    '농정원' : '003001010001',
+    '고용농촌진흥청노동부' : '003001012',
+    '문화체육관광부' : '003001012001',
+    '한국콘텐츠진흥원' : '003001012002',
+    '국립정동극장' : '003001013',
+    '법무부' : '003001014',
+    '병무청' : '003001015',
+    '보건복지부' : '003001016',
+    '아동권리보장원' : '003001016001',
+    '사회보장정보원' : '003001016002',
+    '산업통상자원부' : '003001017',
+    '대한무역투자진흥공사' : '003001017001',
+    '여성가족부' : '003001018',
+    '구리시청년내일센터' : '003001060',
+    '충청북도기업진흥원' : '003001061',
+    '외교부' : '003001019',
+    '이천문화재단' : '003001059',
+    '인사혁신처' : '003001020',
+    '통일부' : '003001021',
+    '남북하나재단' : '003001021001',
+    '한국장학재단' : '003001022',
+    '해양수산부' : '003001023',
+    '한국어촌어항공단' : '003001023001',
+    '행정안전부' : '003001024',
+    '행정중심복합도시건설청' : '003001025',
+    '환경부' : '003001026',
+    '환경산업기술원' : '003001026001',
+    '교육부' : '003001027',
+    '산림청' : '003001028',
+    '식품의약품안전처' : '003001029',
+    '조달청' : '003001030',
+    '중소벤처기업부' : '003001031',
+    '창업진흥원' : '003001031001',
+    '문화재청' : '003001032',
+    '국세청' : '003001033',
+    '금융감독원' : '003001034',
+    '부산문화재단' : '003001035',
+    '예금보험공사' : '003001036',
+    '울산항만공사' : '003001037',
+    '중소벤처기업진흥공단' : '003001038',
+    '특허청' : '003001039',
+    '한국공항공사' : '003001040',
+    '한국농수산식품유통공사' : '003001041',
+    '한국문화정보원' : '003001042',
+    '한국소비자원' : '003001043',
+    '한국전력공사' : '003001044',
+    '법제처' : '003001045',
+    '청년재단' : '003001046',
+    '서울시주거복지센터' : '003001047',
+    'LH공사마이홈상담센터' : '003001048',
+    '정부24' : '003001049',
+    '한국수자원공단' : '003001050',
+    '한국수산자원공단' : '003001051',
+    '국무조정실' : '003001052',
+    '한국토지주택공사' : '003001053',
+    '중앙방역대책본부' : '003001054',
+    '질병관리청' : '003001055',
+    '한국주택금융공사' : '003001056',
+    '한국산업인력공단' : '003001057',
+    '한국문화재재단' : '003001058',
+    '방송통신위원회' : '003001062',
+    '국민연금공단' : '003001063'
+}
 
 @app.post("/start")
 async def kakaoChat(request: Request):
@@ -361,7 +438,14 @@ def chatbotProxy(kakaoUid, request, botQueue, controlInfo):
         return botQueue.put(returnData)
 
     if "시작하기" in userMessage:
-        returnData = step1(kakaoUid)
+        returnData = step0(kakaoUid)
+    elif controlInfo['step'] == 0:
+        if userMessage == '정부 중앙부처 정책 알아보기':
+            returnData = step1CenterGoverment(kakaoUid)
+        elif userMessage == '지자체 정책 알아보기':
+            returnData = step1City(kakaoUid)
+        else:
+            returnData = commandErrorMessage()
     elif controlInfo['step'] == 1:
         if userMessage == '도시 지정하기':
             returnData = step2(kakaoUid)
@@ -399,8 +483,7 @@ def chatbotProxy(kakaoUid, request, botQueue, controlInfo):
 
     return botQueue.put(returnData)
 
-
-def step1(kakaoUid):
+def step0(kakaoUid):
     searchReset(kakaoUid)
 
     return {
@@ -410,12 +493,17 @@ def step1(kakaoUid):
                 {
                     "textCard": {
                         "title": "청년 정책이 궁금하신가요?",
-                        "description": "안녕하세요!\n지원 되는 청년 정책을 간편하게 알려드리는 청년 정책 알고 있니? 입니다!\n검색하고 싶으신 검색 방식을 선택해주세요!",
+                        "description": "안녕하세요!\n지원 되는 청년 정책을 간편하게 알려드리는 청년 정책 알고 있니? 입니다!\n검색하시려는 기관 형태를 선택해주세요!\n\n정부 중앙부처 : 시.도에서 시행하는 것이 아닌 정부 기관에서 시행하는 정책을 검색할 수 있습니다.\n지자체 : 시.도 혹은 선택한 시.도에 구.군에서 시행하는 정책을 검색할 수 있습니다.",
                         "buttons": [
                             {
                                 "action": "message",
-                                "label": "특정 지역 정책 알아보기",
-                                "messageText": "도시 지정하기"
+                                "label": "정부 중앙부처 정책 알아보기",
+                                "messageText": "정부 중앙부처 정책 알아보기"
+                            },
+                            {
+                                "action": "message",
+                                "label": "지자체 정책 알아보기",
+                                "messageText": "지자체 정책 알아보기"
                             }
                         ]
                     }
@@ -430,6 +518,94 @@ def step1(kakaoUid):
             ]
         }}
 
+
+def step1CenterGoverment(kakaoUid):
+    setSearchStep(kakaoUid, 1, 'centerGovernment')
+
+    return {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "textCard": {
+                        "title": "정부 중앙부처 정책이 궁금하시군요!",
+                        "description": "검색을 원하시는 중앙 부처를 입력해주세요!\n특정 중앙부처가 아닌 전체 중앙부처 정책을 확인하고 싶으시면 '정책 검색' 버튼을 클릭해주세요!",
+                        "buttons": [
+                            {
+                                "action": "message",
+                                "label": "시.도 정책",
+                                "messageText": "시.도 정책"
+                            },
+                            {
+                                "action": "message",
+                                "label": "구.군 정책",
+                                "messageText": "구.군 정책"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "textCard": {
+                        "title": "정부 중앙부처 목록",
+                        "description": ", ".join(CENTER_GOVERNMENT_CODE.keys()),
+                        "buttons": [
+                            {
+                                "action": "message",
+                                "label": "시.도 정책",
+                                "messageText": "시.도 정책"
+                            },
+                            {
+                                "action": "message",
+                                "label": "구.군 정책",
+                                "messageText": "구.군 정책"
+                            }
+                        ]
+                    }
+                }
+            ],
+            "quickReplies": [
+                {
+                    "action": "message",
+                    "label": "처음으로",
+                    "messageText": "시작하기"
+                }
+            ]
+        }}
+
+def step1City(kakaoUid):
+    setSearchStep(kakaoUid, 1, 'city')
+
+    return {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "textCard": {
+                        "title": "지자체 정책이 궁금하시군요!",
+                        "description": "지자체에서 시행하는 정책은 두가지로 검색할 수 있어요!\n원하시는 검색 방법을 선택해주세요.",
+                        "buttons": [
+                            {
+                                "action": "message",
+                                "label": "시.도 정책",
+                                "messageText": "시.도 정책"
+                            },
+                            {
+                                "action": "message",
+                                "label": "구.군 정책",
+                                "messageText": "구.군 정책"
+                            }
+                        ]
+                    }
+                }
+            ],
+            "quickReplies": [
+                {
+                    "action": "message",
+                    "label": "처음으로",
+                    "messageText": "시작하기"
+                }
+            ]
+        }}
 
 def step2(kakaoUid):
     setSearchStep(kakaoUid, 2)
@@ -892,12 +1068,12 @@ def writeYouthContent(kakaoUid, content):
     conn.close()
 
 
-def setSearchStep(kakaoUid, step):
+def setSearchStep(kakaoUid, step, searchType):
     conn = dbConn()
     cur = conn.cursor()
     cur.execute(
-        'UPDATE searchControl SET step = %s, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
-        (step, kakaoUid)
+        'UPDATE searchControl SET step = %s, searchType = %s, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
+        (step, searchType, kakaoUid)
     )
     conn.commit()
     cur.close()
@@ -944,7 +1120,7 @@ def searchReset(kakaoUid):
     conn = dbConn()
     cur = conn.cursor()
     cur.execute(
-        'UPDATE searchControl SET step = 1, city = null, goverment = null, age = null, content = null, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
+        'UPDATE searchControl SET step = 0, searchType = null, city = null, goverment = null, age = null, content = null, updatedAt = CURRENT_TIMESTAMP() WHERE kakaoUid = %s',
         kakaoUid
     )
     conn.commit()
